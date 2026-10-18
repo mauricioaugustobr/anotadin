@@ -123,6 +123,36 @@ export default function App() {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
+  // Deep links: #/page/<id> sincroniza a URL com a página aberta.
+  useEffect(() => {
+    if (!loaded) return;
+    const applyHash = () => {
+      const m = /^#\/page\/(.+)$/.exec(window.location.hash);
+      if (!m) return;
+      const id = decodeURIComponent(m[1]);
+      const state = useAppStore.getState();
+      if (state.pages[id]) state.setCurrentPage(id);
+    };
+    applyHash();
+    window.addEventListener('hashchange', applyHash);
+    return () => window.removeEventListener('hashchange', applyHash);
+  }, [loaded]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    const expected = currentPageId ? `#/page/${currentPageId}` : '#/';
+    if (window.location.hash !== expected) {
+      if (!history.state?.anotadinInit) {
+        // Primeira sincronização não cria entrada no histórico.
+        history.replaceState({ anotadinInit: true }, '', expected);
+      } else {
+        // As demais criam, permitindo voltar entre páginas com o botão
+        // voltar do navegador.
+        window.location.hash = expected;
+      }
+    }
+  }, [loaded, currentPageId]);
+
   // Atalhos globais.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

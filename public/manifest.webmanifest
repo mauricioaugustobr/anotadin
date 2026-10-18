@@ -1,0 +1,29 @@
+{
+  "name": "ANOTADIN — Notas open source",
+  "short_name": "ANOTADIN",
+  "description": "Aplicativo de notas open source com editor de blocos, inspirado no Notion. Seus dados ficam salvos no seu navegador.",
+  "lang": "pt-BR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2f6feb",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

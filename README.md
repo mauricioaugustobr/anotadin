@@ -17,6 +17,8 @@
 - **Desfazer/refazer** — `Ctrl+Z` / `Ctrl+Shift+Z`
 - **Tema claro/escuro** — `Ctrl+Shift+L`
 - **Persistência local** — salvo automaticamente no IndexedDB do navegador (funciona offline)
+- **PWA instalável** — adicione o ANOTADIN à tela inicial (celular ou desktop) e use como app, mesmo sem internet
+- **URL por página** — cada página tem link próprio (`#/page/…`), com suporte ao botão voltar do navegador
 
 ## 🚀 Começando
 
