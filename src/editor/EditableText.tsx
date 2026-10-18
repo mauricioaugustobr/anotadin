@@ -20,6 +20,12 @@ import {
 } from '@/lib/richText';
 import type { RichSegment, RichText } from '@/types';
 
+/** Caret no fim do conteúdo — usado apenas quando a posição é desconhecida. */
+function endCaretOf(content: RichText): Caret {
+  const last = content.length > 0 ? content.length - 1 : 0;
+  return { idx: last, offset: content[last]?.text.length ?? 0 };
+}
+
 export interface EditableApi {
   el: HTMLDivElement;
   focusStart: () => void;
@@ -86,9 +92,14 @@ export const EditableText = forwardRef<EditableApi, EditableTextProps>(function 
   onLinkShortcutRef.current = onLinkShortcut;
   onFocusChangedRef.current = onFocusChanged;
 
-  const commit = (next: RichText, caret: Caret) => {
+  /**
+   * Envia o novo conteúdo ao modelo. Quando `caret` é nulo (posição
+   * desconhecida), o caret NÃO é reposto — jamais cai no início do bloco,
+   * o que invertia a digitação.
+   */
+  const commit = (next: RichText, caret: Caret | null) => {
     pendingCaretRef.current = caret;
-    onInputRef.current(next, caret);
+    onInputRef.current(next, caret ?? endCaretOf(next));
   };
 
   const selectionOf = (): SelectionRange | null => {
@@ -178,29 +189,64 @@ export const EditableText = forwardRef<EditableApi, EditableTextProps>(function 
     },
   }));
 
-  // Restaura o caret após re-render (estrutura de spans pode ter mudado).
+  // Restaura SEMPRE o caret após o re-render. O Chrome zera a seleção para
+  // a posição 0 quando o React escreve `nodeValue` no nó focado, então a
+  // seleção pós-commit do navegador não é confiável — reafirmamos a
+  // posição conhecida (medida no evento de input, após a inserção).
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-    if (pendingCaretRef.current) {
-      if (document.activeElement === root) {
-        setCaret(root, pendingCaretRef.current);
-      }
-      pendingCaretRef.current = null;
+    // Remove nós "estrangeiros" que o navegador inseriu diretamente na
+    // raiz (ex.: teclado móvel compondo fora dos spans). O React não os
+    // gerencia; o conteúdo já foi absorvido pelo modelo na serialização.
+    for (const child of Array.from(root.childNodes)) {
+      const isSpan =
+        child.nodeType === Node.ELEMENT_NODE &&
+        (child as HTMLElement).getAttribute('data-idx') !== null;
+      if (!isSpan) child.remove();
     }
+    const pending = pendingCaretRef.current;
+    pendingCaretRef.current = null;
+    if (pending === null) return;
+    if (document.activeElement !== root) return;
+    setCaret(root, pending);
   });
 
-  const handleInput = () => {
-    if (composingRef.current) return;
+  const syncFromDom = () => {
     const root = rootRef.current;
     if (!root) return;
     const next = domToRichText(root, valueRef.current);
-    const caret = getCaret(root) ?? { idx: 0, offset: 0 };
+    // Se o caret não puder ser determinado, NÃO o repõe (nunca cair no
+    // início do bloco — isso invertia a digitação em teclados móveis).
+    const caret = getCaret(root);
     commit(next, caret);
+  };
+
+  const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
+    const native = e.nativeEvent as InputEvent;
+    if (native.isComposing) {
+      composingRef.current = true;
+      return;
+    }
+    composingRef.current = false;
+    syncFromDom();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const mod = e.ctrlKey || e.metaKey;
+
+    // Caret no nível da raiz (acontece ao clicar em bloco vazio ou após
+    // colapsos do navegador): move para dentro do span ANTES da inserção
+    // padrão do navegador, para o texto nunca nascer fora dos spans.
+    const root = rootRef.current;
+    if (root) {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && sel.anchorNode === root) {
+        const mapped = getCaret(root);
+        if (mapped) setCaret(root, mapped);
+      }
+    }
+
     if (mod && !e.altKey && !e.shiftKey) {
       const k = e.key.toLowerCase();
       if (k === 'b' || k === 'i' || k === 'u' || k === 'e') {
@@ -270,7 +316,7 @@ export const EditableText = forwardRef<EditableApi, EditableTextProps>(function 
       }}
       onCompositionEnd={() => {
         composingRef.current = false;
-        handleInput();
+        syncFromDom();
       }}
       onFocus={() => onFocusChangedRef.current?.(true)}
       onBlur={() => {

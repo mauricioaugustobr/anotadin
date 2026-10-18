@@ -2,7 +2,7 @@
    ANOTADIN — service worker (cache offline, atualização automática)
 --------------------------------------------------------------------------- */
 
-const CACHE = 'anotadin-v1';
+const CACHE = 'anotadin-v3';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
