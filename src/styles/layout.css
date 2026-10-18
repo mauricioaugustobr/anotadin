@@ -1,0 +1,462 @@
+/* ---------------------------------------------------------------------------
+   ANOTADIN — topbar, sidebar e estrutura geral
+--------------------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------------------
+   Topbar
+--------------------------------------------------------------------------- */
+
+.topbar {
+  height: var(--topbar-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 50;
+  flex-shrink: 0;
+}
+
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.crumb-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.crumb-sep {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 200px;
+  padding: 4px 6px;
+  border-radius: 5px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  transition: background 120ms ease;
+  white-space: nowrap;
+}
+
+.crumb:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.crumb.is-current {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.crumb-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.crumb-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.save-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 64px;
+  justify-content: flex-end;
+  transition: opacity 200ms ease;
+}
+
+.save-indicator.is-saved {
+  color: var(--text-muted);
+}
+
+.search-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.search-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.search-btn .kbd {
+  margin-left: 4px;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: filter 120ms ease, transform 60ms ease;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.07);
+}
+
+.btn-primary:active {
+  transform: translateY(0.5px);
+}
+
+/* ---------------------------------------------------------------------------
+   Sidebar
+--------------------------------------------------------------------------- */
+
+.sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  background: var(--bg-sidebar);
+  display: flex;
+  flex-direction: column;
+  padding: 8px 8px 8px 12px;
+  overflow: hidden;
+  position: relative;
+  z-index: 70;
+}
+
+.sidebar-head {
+  padding: 6px 4px 10px;
+  display: flex;
+  align-items: center;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+
+.logo-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #2f6feb, #6ea0ff);
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(47, 111, 235, 0.35);
+}
+
+.logo-mark.big {
+  width: 56px;
+  height: 56px;
+  font-size: 32px;
+  border-radius: 15px;
+}
+
+.logo-text {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-size: 14.5px;
+  color: var(--text);
+}
+
+.new-page-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 120ms ease, color 120ms ease;
+  margin-bottom: 8px;
+}
+
+.new-page-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.page-tree {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 16px;
+  position: relative;
+}
+
+.page-tree.is-over-root::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 4px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+.tree-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 8px 6px;
+}
+
+.sidebar-foot {
+  padding: 10px 6px 4px;
+  border-top: 1px solid var(--border);
+}
+
+.sidebar-foot-text {
+  font-size: 11px;
+  color: var(--text-faint);
+  letter-spacing: 0.04em;
+}
+
+/* Item da árvore */
+
+.tree-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding-right: 6px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 100ms ease;
+}
+
+.tree-item:hover {
+  background: var(--bg-hover);
+}
+
+.tree-item.is-active {
+  background: var(--bg-active);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.tree-item.drop-inside {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
+.drop-line {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.tree-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 22px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: background 100ms ease;
+}
+
+.tree-chevron:hover {
+  background: var(--bg-active);
+}
+
+.tree-chevron.is-hidden {
+  visibility: hidden;
+}
+
+.tree-chevron svg {
+  transition: transform 140ms ease;
+}
+
+.tree-chevron svg.is-open {
+  transform: rotate(90deg);
+}
+
+.tree-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.tree-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-rename {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  border: 1.5px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg);
+  font-size: 14px;
+  padding: 0 6px;
+  outline: none;
+}
+
+.tree-actions {
+  display: none;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.tree-item:hover .tree-actions,
+.tree-item.is-active .tree-actions {
+  display: inline-flex;
+}
+
+.tree-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  transition: background 100ms ease, color 100ms ease;
+}
+
+.tree-action:hover {
+  background: var(--bg-active);
+  color: var(--text);
+}
+
+.tree-children {
+  position: relative;
+}
+
+/* ---------------------------------------------------------------------------
+   Estado vazio
+--------------------------------------------------------------------------- */
+
+.empty-state {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-muted);
+  padding: 32px;
+  text-align: center;
+}
+
+.empty-state h2 {
+  margin: 8px 0 0;
+  font-size: 20px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.empty-state p {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+
+/* ---------------------------------------------------------------------------
+   Responsivo
+--------------------------------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .sidebar {
+    position: fixed;
+    top: var(--topbar-height);
+    bottom: 0;
+    left: 0;
+    transform: translateX(-100%);
+    transition: transform 200ms ease;
+    box-shadow: none;
+    background: var(--bg-sidebar);
+  }
+
+  .sidebar.is-open {
+    transform: none;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .search-label {
+    display: none;
+  }
+
+  .search-btn .kbd {
+    display: none;
+  }
+}
