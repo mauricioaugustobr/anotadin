@@ -20,6 +20,10 @@
 
 ## 🚀 Começando
 
+Experimente online: **[mauricioaugustobr.github.io/anotadin](https://mauricioaugustobr.github.io/anotadin/)**
+
+Para rodar localmente:
+
 ```bash
 npm install
 npm run dev
