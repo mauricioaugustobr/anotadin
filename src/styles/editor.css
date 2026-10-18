@@ -97,12 +97,7 @@
   outline: none;
   min-height: 48px;
   word-break: break-word;
-}
-
-.page-title:empty::before {
-  content: attr(data-placeholder);
-  color: var(--text-faint);
-  pointer-events: none;
+  white-space: pre-wrap;
 }
 
 .page-meta {

@@ -2,12 +2,14 @@
 // Página do editor: cabeçalho (ícone, título, datas) + área de blocos
 // ---------------------------------------------------------------------------
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Dices, Plus, X } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { formatDate } from '@/lib/utils';
-import type { Page } from '@/types';
+import { textOf } from '@/lib/richText';
+import type { Page, RichText } from '@/types';
 import { BlocksArea } from './BlocksArea';
+import { EditableText } from './EditableText';
 
 const EMOJIS = [
   '📝', '📌', '📚', '📅', '📊', '📈', '📋', '🗂', '📁', '📄', '📃', '✏️', '🖊️', '🗒️',
@@ -39,7 +41,6 @@ export function EditorPage({ pageId }: { pageId: string }) {
 
 const PageHeader = memo(function PageHeader({ page }: { page: Page }) {
   const updatePage = useAppStore((s) => s.updatePage);
-  const titleRef = useRef<HTMLDivElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   // Fecha o seletor de emojis ao clicar fora.
@@ -70,14 +71,19 @@ const PageHeader = memo(function PageHeader({ page }: { page: Page }) {
     setIcon(next);
   }, [page.icon, setIcon]);
 
-  const handleTitleInput = (e: React.FormEvent<HTMLDivElement>) => {
-    updatePage(page.id, { title: e.currentTarget.textContent ?? '' });
-  };
+  const titleValue = useMemo(() => [{ text: page.title }], [page.title]);
 
-  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+  const handleTitleInput = useCallback(
+    (value: RichText) => {
+      updatePage(page.id, { title: textOf(value) });
+    },
+    [page.id, updatePage]
+  );
+
+  const handleTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      e.currentTarget.blur();
+      (document.activeElement as HTMLElement | null)?.blur();
       // Foca o primeiro bloco editável da página.
       const editable = document.querySelector<HTMLElement>('.blocks [data-editable="true"]');
       editable?.focus();
@@ -87,7 +93,7 @@ const PageHeader = memo(function PageHeader({ page }: { page: Page }) {
         sel.collapseToEnd();
       }
     }
-  };
+  }, []);
 
   return (
     <header className="page-header">
@@ -138,18 +144,15 @@ const PageHeader = memo(function PageHeader({ page }: { page: Page }) {
         )}
       </div>
 
-      <div
-        ref={titleRef}
-        className="page-title"
-        contentEditable
-        suppressContentEditableWarning
-        spellCheck={false}
-        data-placeholder="Sem título"
+      <EditableText
+        blockId="page-title"
+        value={titleValue}
         onInput={handleTitleInput}
         onKeyDown={handleTitleKeyDown}
-      >
-        {page.title}
-      </div>
+        className={`page-title${page.title.length === 0 ? ' is-empty' : ''}`}
+        placeholder="Sem título"
+        spellCheck={false}
+      />
 
       <div className="page-meta">
         Criado em {formatDate(page.createdAt)}
