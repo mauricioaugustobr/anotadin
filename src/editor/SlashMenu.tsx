@@ -4,10 +4,13 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
+  ChevronRight,
   Code2,
   Heading1,
   Heading2,
   Heading3,
+  Image as ImageIcon,
+  LayoutGrid,
   Lightbulb,
   List,
   ListCollapse,
@@ -15,6 +18,7 @@ import {
   ListTodo,
   Minus,
   Quote,
+  Table,
   Type,
 } from 'lucide-react';
 import type { BlockType } from '@/types';
@@ -26,6 +30,9 @@ const ICONS: Record<BlockType, React.ReactNode> = {
   heading_1: <Heading1 size={16} />,
   heading_2: <Heading2 size={16} />,
   heading_3: <Heading3 size={16} />,
+  toggle_heading_1: <ChevronRight size={16} />,
+  toggle_heading_2: <ChevronRight size={16} />,
+  toggle_heading_3: <ChevronRight size={16} />,
   bulleted_list: <List size={16} />,
   numbered_list: <ListOrdered size={16} />,
   to_do: <ListTodo size={16} />,
@@ -33,6 +40,9 @@ const ICONS: Record<BlockType, React.ReactNode> = {
   quote: <Quote size={16} />,
   callout: <Lightbulb size={16} />,
   code: <Code2 size={16} />,
+  image: <ImageIcon size={16} />,
+  table: <Table size={16} />,
+  columns: <LayoutGrid size={16} />,
   divider: <Minus size={16} />,
 };
 

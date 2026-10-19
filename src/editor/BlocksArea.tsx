@@ -9,6 +9,7 @@ import { flattenPage, type FlatEntry } from '@/lib/flatten';
 import { blockSubtree } from '@/lib/blocks';
 import { canHaveChildren, type Page } from '@/types';
 import { clamp } from '@/lib/utils';
+import { isImageFile, readFileAsDataURL } from '@/lib/files';
 import type { Caret } from '@/lib/richText';
 import { EditorCtx, type DropSlot } from './context';
 import type { EditableApi } from './EditableText';
@@ -207,6 +208,11 @@ export function BlocksArea({ page }: { page: Page }) {
   };
 
   const onDragOverRow = (e: React.DragEvent, entry: FlatEntry) => {
+    if (e.dataTransfer.types.includes('Files')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      return;
+    }
     if (!dragId) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
@@ -220,6 +226,11 @@ export function BlocksArea({ page }: { page: Page }) {
   };
 
   const onDragOverContainer = (e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('Files')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      return;
+    }
     if (!dragId) return;
     if (e.target !== blocksRef.current) return;
     e.preventDefault();
@@ -228,7 +239,20 @@ export function BlocksArea({ page }: { page: Page }) {
     if (last) setSlot(computeSlot(last, e.clientX, e.clientY, false));
   };
 
-  const onDrop = (e: React.DragEvent) => {
+  const onDrop = async (e: React.DragEvent) => {
+    const files = Array.from(e.dataTransfer.files ?? []).filter(isImageFile);
+    if (files.length > 0) {
+      e.preventDefault();
+      e.stopPropagation();
+      let index = page.blockOrder.length;
+      for (const file of files) {
+        const url = await readFileAsDataURL(file);
+        const newId = useAppStore.getState().createBlock(pageId, null, index, 'image');
+        useAppStore.getState().updateBlock(newId, { image: { src: url, caption: '' } });
+        index += 1;
+      }
+      return;
+    }
     if (!dragId) return;
     e.preventDefault();
     if (slot) {

@@ -2,10 +2,11 @@
 // Item da árvore de páginas: navegação, renomear, subpáginas, arrastar
 // ---------------------------------------------------------------------------
 
-import { useEffect, useRef, useState } from 'react';
-import { ChevronRight, FilePlus2, MoreHorizontal, Plus } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronRight, FilePlus2, MoreHorizontal, Plus, Star } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { useUiStore } from '@/store/uiStore';
+import { sortPageIds } from '@/lib/tags';
 import type { Page } from '@/types';
 import { Menu } from './Menu';
 import type { MenuItemSpec } from './Menu';
@@ -15,11 +16,12 @@ const PAGE_MIME = 'text/x-anotadin-page';
 interface PageTreeItemProps {
   pageId: string;
   depth: number;
+  visibleIds?: Set<string> | null;
 }
 
 type DropZone = 'before' | 'inside' | 'after' | null;
 
-export function PageTreeItem({ pageId, depth }: PageTreeItemProps) {
+export function PageTreeItem({ pageId, depth, visibleIds }: PageTreeItemProps) {
   const page = useAppStore((s) => s.pages[pageId]);
   const children = useAppStore((s) => s.pages[pageId]?.children ?? []);
   const pages = useAppStore((s) => s.pages);
@@ -30,6 +32,7 @@ export function PageTreeItem({ pageId, depth }: PageTreeItemProps) {
   const duplicatePage = useAppStore((s) => s.duplicatePage);
   const movePage = useAppStore((s) => s.movePage);
   const updatePage = useAppStore((s) => s.updatePage);
+  const sidebarSort = useUiStore((s) => s.sidebarSort);
 
   const [open, setOpen] = useState(true);
   const [renaming, setRenaming] = useState(false);
@@ -45,10 +48,20 @@ export function PageTreeItem({ pageId, depth }: PageTreeItemProps) {
     }
   }, [renaming]);
 
+  const manualSort = sidebarSort === 'manual';
+
+  const visibleChildren = useMemo(
+    () =>
+      sortPageIds(pages, children, sidebarSort).filter(
+        (id) => !visibleIds || visibleIds.has(id)
+      ),
+    [pages, children, sidebarSort, visibleIds]
+  );
+
   if (!page) return null;
 
   const isActive = currentPageId === pageId;
-  const hasChildren = children.length > 0;
+  const hasChildren = visibleChildren.length > 0;
 
   const commitRename = () => {
     setRenaming(false);
@@ -70,24 +83,36 @@ export function PageTreeItem({ pageId, depth }: PageTreeItemProps) {
       icon: <FilePlus2 size={14} />,
       onClick: () => createPage({ parentId: pageId }),
     },
+    {
+      label: page.favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos',
+      icon: <Star size={14} />,
+      onClick: () => updatePage(pageId, { favorite: !page.favorite }, 'structural'),
+    },
     { label: 'Duplicar', icon: <CopyIcon />, onClick: () => duplicatePage(pageId) },
     { label: 'Excluir', icon: <TrashIcon />, danger: true, onClick: () => deletePage(pageId) },
   ];
 
   const onDragStart = (e: React.DragEvent) => {
+    if (!manualSort) return;
     e.dataTransfer.setData(PAGE_MIME, pageId);
     e.dataTransfer.effectAllowed = 'move';
   };
 
+  const isDescendantOfDragged = (dragId: string): boolean => {
+    let cur: Page | null | undefined = pages[pageId];
+    while (cur) {
+      if (cur.id === dragId) return true;
+      cur = cur.parentId ? pages[cur.parentId] : null;
+    }
+    return false;
+  };
+
   const onDragOver = (e: React.DragEvent) => {
+    if (!manualSort) return;
     const dragId = e.dataTransfer.getData(PAGE_MIME);
     if (!dragId || dragId === pageId) return;
     // Impede soltar dentro da própria subárvore.
-    let cur: Page | null = pages[pageId] ?? null;
-    while (cur) {
-      if (cur.id === dragId) return;
-      cur = cur.parentId ? pages[cur.parentId] ?? null : null;
-    }
+    if (isDescendantOfDragged(dragId)) return;
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
@@ -103,17 +128,14 @@ export function PageTreeItem({ pageId, depth }: PageTreeItemProps) {
   const onDragLeave = () => setDropZone(null);
 
   const onDrop = (e: React.DragEvent) => {
+    if (!manualSort) return;
     e.preventDefault();
     e.stopPropagation();
     const dragId = e.dataTransfer.getData(PAGE_MIME);
     const zone = dropZone;
     setDropZone(null);
     if (!dragId || dragId === pageId) return;
-    let cur: Page | null = pages[pageId] ?? null;
-    while (cur) {
-      if (cur.id === dragId) return;
-      cur = cur.parentId ? pages[cur.parentId] ?? null : null;
-    }
+    if (isDescendantOfDragged(dragId)) return;
     if (zone === 'inside') {
       movePage(dragId, pageId, children.length);
       setOpen(true);
@@ -136,7 +158,7 @@ export function PageTreeItem({ pageId, depth }: PageTreeItemProps) {
         ref={rowRef}
         className={`tree-item${isActive ? ' is-active' : ''}${dropZone === 'inside' ? ' drop-inside' : ''}`}
         style={{ paddingLeft: 8 + depth * 14 }}
-        draggable={!renaming}
+        draggable={manualSort && !renaming}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
@@ -165,7 +187,9 @@ export function PageTreeItem({ pageId, depth }: PageTreeItemProps) {
           <ChevronRight size={13} className={open ? 'is-open' : ''} />
         </button>
 
-        <span className="tree-icon">{page.icon ?? '📄'}</span>
+        <span className="tree-icon">
+          {page.iconImage ? <img src={page.iconImage} alt="" className="tree-icon-img" /> : page.icon ?? '📄'}
+        </span>
 
         {renaming ? (
           <input
@@ -181,7 +205,10 @@ export function PageTreeItem({ pageId, depth }: PageTreeItemProps) {
             }}
           />
         ) : (
-          <span className="tree-label">{page.title || 'Sem título'}</span>
+          <span className="tree-label">
+            {page.title || 'Sem título'}
+            {page.favorite && <Star size={10} fill="currentColor" className="tree-fav-star" />}
+          </span>
         )}
 
         <span className="tree-actions">
@@ -204,8 +231,8 @@ export function PageTreeItem({ pageId, depth }: PageTreeItemProps) {
 
       {hasChildren && open && (
         <div className="tree-children">
-          {children.map((cid) => (
-            <PageTreeItem key={cid} pageId={cid} depth={depth + 1} />
+          {visibleChildren.map((cid) => (
+            <PageTreeItem key={cid} pageId={cid} depth={depth + 1} visibleIds={visibleIds} />
           ))}
         </div>
       )}

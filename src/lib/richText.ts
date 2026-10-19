@@ -453,6 +453,8 @@ export function segmentClass(s: RichSegment): string {
     s.underline && 'u',
     s.strikethrough && 's',
     s.code && 'c',
+    s.color && `tc-${s.color}`,
+    s.bg && `bgh-${s.bg}`,
   ]
     .filter(Boolean)
     .join(' ');

@@ -12,12 +12,13 @@ import type { PersistedData } from '@/types';
 import { Topbar } from '@/components/Topbar';
 import { Sidebar } from '@/components/Sidebar';
 import { SearchModal } from '@/components/SearchModal';
+import { TodayPage } from '@/components/TodayPage';
 import { EditorPage } from '@/editor/EditorPage';
 
 interface PersistedSnapshot {
   v: number;
   data: PersistedData;
-  ui: { theme: 'light' | 'dark' };
+  ui: { theme: 'light' | 'dark'; sidebarSort?: 'manual' | 'az' | 'recent' };
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -32,8 +33,12 @@ function buildSnapshot(): PersistedSnapshot {
       blocks: state.blocks,
       rootPageIds: state.rootPageIds,
       currentPageId: state.currentPageId,
+      versions: state.versions,
     },
-    ui: { theme: useUiStore.getState().theme },
+    ui: {
+      theme: useUiStore.getState().theme,
+      sidebarSort: useUiStore.getState().sidebarSort,
+    },
   };
 }
 
@@ -68,7 +73,10 @@ async function doLoadApp(): Promise<void> {
     const snap = await dbGet<PersistedSnapshot>('state');
     if (snap && snap.v === 1 && snap.data?.pages && Object.keys(snap.data.pages).length > 0) {
       useAppStore.getState().hydrate(snap.data);
-      useUiStore.setState({ theme: snap.ui?.theme ?? 'light' });
+      useUiStore.setState({
+        theme: snap.ui?.theme ?? 'light',
+        sidebarSort: snap.ui?.sidebarSort ?? 'manual',
+      });
     } else {
       useAppStore.getState().hydrate(seedData());
     }
@@ -90,6 +98,7 @@ export default function App() {
   const theme = useUiStore((s) => s.theme);
   const searchOpen = useUiStore((s) => s.searchOpen);
   const sidebarOpen = useUiStore((s) => s.sidebarOpen);
+  const showToday = useUiStore((s) => s.showToday);
   const setSidebarOpen = useUiStore((s) => s.setSidebarOpen);
   const setSearchOpen = useUiStore((s) => s.setSearchOpen);
   const createPage = useAppStore((s) => s.createPage);
@@ -215,7 +224,9 @@ export default function App() {
       <div className="app-body">
         <Sidebar />
         <main className="main">
-          {pageExists ? (
+          {showToday ? (
+            <TodayPage />
+          ) : pageExists ? (
             <EditorPage key={currentPageId} pageId={currentPageId!} />
           ) : (
             <div className="empty-state">

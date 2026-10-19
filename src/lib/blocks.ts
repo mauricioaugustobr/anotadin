@@ -7,7 +7,7 @@ import { emptyText, fromPlainText, textOf } from './richText';
 import type { Block, BlockType, RichText } from '@/types';
 
 export function makeBlock(type: BlockType, pageId: string, content?: RichText): Block {
-  return {
+  const block: Block = {
     id: uid(),
     type,
     content: content ?? emptyText(),
@@ -17,6 +17,26 @@ export function makeBlock(type: BlockType, pageId: string, content?: RichText): 
     children: [],
     pageId,
   };
+  if (type === 'callout') block.calloutIcon = '💡';
+  if (type === 'table') {
+    block.table = {
+      cells: [
+        ['', '', ''],
+        ['', '', ''],
+        ['', '', ''],
+      ],
+    };
+  }
+  if (type === 'columns') {
+    block.columns = [
+      { id: uid(), text: emptyText() },
+      { id: uid(), text: emptyText() },
+    ];
+  }
+  if (type === 'image') {
+    block.image = { src: '', caption: '' };
+  }
+  return block;
 }
 
 export function makeCodeBlock(pageId: string, text: string, language = 'texto simples'): Block {
@@ -145,6 +165,9 @@ export function cloneBlockTree(
       children: [],
       pageId,
     };
+    if (src.table) copy.table = { cells: src.table.cells.map((row) => [...row]) };
+    if (src.columns) copy.columns = src.columns.map((c) => ({ id: uid(), text: c.text.map((s) => ({ ...s })) }));
+    if (src.image) copy.image = { ...src.image };
     copy.children = src.children.map(walk);
     cloned[nid] = copy;
     return nid;

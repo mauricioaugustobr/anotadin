@@ -6,15 +6,9 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { uid } from '@/lib/id';
 import { fromPlainText, normalize, textOf } from '@/lib/richText';
-import {
-  blockSubtree,
-  cloneBlockTree,
-  deleteBlockTree,
-  findBlockParent,
-  makeBlock,
-  removeBlockFromParent,
-} from '@/lib/blocks';
-import type { Block, BlockType, Page, PersistedData, RichText } from '@/types';
+import { blockSubtree, cloneBlockTree, deleteBlockTree, findBlockParent, makeBlock, removeBlockFromParent } from '@/lib/blocks';
+import type { Block, BlockType, Page, PageVersion, PersistedData, RichText } from '@/types';
+import { useUiStore } from './uiStore';
 
 interface Snapshot {
   pages: Record<string, Page>;
@@ -28,6 +22,7 @@ interface AppState {
   blocks: Record<string, Block>;
   rootPageIds: string[];
   currentPageId: string | null;
+  versions: Record<string, PageVersion[]>;
 
   // Inicialização
   hydrate: (data: PersistedData) => void;
@@ -39,6 +34,10 @@ interface AppState {
   updatePage: (id: string, patch: Partial<Page>, kind?: 'content' | 'structural') => void;
   movePage: (id: string, parentId: string | null, index: number) => void;
   duplicatePage: (id: string) => string | null;
+
+  // Histórico de versões
+  snapshotPage: (pageId: string) => void;
+  restoreVersion: (pageId: string, versionId: string) => void;
 
   // Blocos
   createBlock: (
@@ -129,6 +128,7 @@ export const useAppStore = create<AppState>()(
     blocks: {},
     rootPageIds: [],
     currentPageId: null,
+    versions: {},
 
     hydrate: (data) =>
       set((s) => {
@@ -136,12 +136,23 @@ export const useAppStore = create<AppState>()(
         s.blocks = data.blocks;
         s.rootPageIds = data.rootPageIds;
         s.currentPageId = data.currentPageId && data.pages[data.currentPageId] ? data.currentPageId : data.rootPageIds[0] ?? null;
+        s.versions = data.versions ?? {};
         s.loaded = true;
+        // Compatibilidade com dados salvos por versões anteriores.
+        for (const page of Object.values(s.pages)) {
+          if (!Array.isArray(page.tags)) page.tags = [];
+          if (typeof page.favorite !== 'boolean') page.favorite = false;
+          if (page.cover === undefined) page.cover = null;
+          if (page.iconImage === undefined) page.iconImage = null;
+        }
       }),
 
-    setCurrentPage: (id) => set((s) => {
-      if (s.pages[id]) s.currentPageId = id;
-    }),
+    setCurrentPage: (id) => {
+      set((s) => {
+        if (s.pages[id]) s.currentPageId = id;
+      });
+      useUiStore.setState({ showToday: false });
+    },
 
     createPage: (opts = {}) => {
       pushHistory(get(), 'structural');
@@ -169,6 +180,7 @@ export const useAppStore = create<AppState>()(
         page.blockOrder = [block.id];
         if (opts.open !== false) s.currentPageId = id;
       });
+      useUiStore.setState({ showToday: false });
       return id;
     },
 
@@ -190,6 +202,7 @@ export const useAppStore = create<AppState>()(
             p.blockOrder.forEach((bid) => deleteBlockTree(s.blocks, bid));
             delete s.pages[pid];
           }
+          delete s.versions[pid];
         }
         s.rootPageIds = s.rootPageIds.filter((pid) => !toDelete.has(pid));
         for (const other of Object.values(s.pages)) {
@@ -265,6 +278,10 @@ export const useAppStore = create<AppState>()(
             id: copyId,
             title: srcId === id ? `${src.title || 'Sem título'} (cópia)` : src.title,
             icon: src.icon,
+            iconImage: src.iconImage ?? null,
+            cover: src.cover ? { ...src.cover } : null,
+            tags: [...(src.tags ?? [])],
+            favorite: false,
             parentId,
             children: [],
             blockOrder: [],
@@ -298,7 +315,86 @@ export const useAppStore = create<AppState>()(
         }
         s.currentPageId = newId;
       });
+      useUiStore.setState({ showToday: false });
       return newId;
+    },
+
+    snapshotPage: (pageId) => {
+      const state = get();
+      const page = state.pages[pageId];
+      if (!page) return;
+
+      const blocks: Record<string, Block> = {};
+      const seen = new Set<string>();
+      const walk = (bid: string) => {
+        if (seen.has(bid)) return;
+        seen.add(bid);
+        const b = state.blocks[bid];
+        if (!b) return;
+        blocks[bid] = JSON.parse(JSON.stringify(b)) as Block;
+        b.children.forEach(walk);
+      };
+      page.blockOrder.forEach(walk);
+
+      const payload = {
+        title: page.title,
+        icon: page.icon,
+        iconImage: page.iconImage ?? null,
+        cover: page.cover ?? null,
+        tags: [...(page.tags ?? [])],
+        blockOrder: [...page.blockOrder],
+        blocks,
+      };
+      const payloadJson = JSON.stringify(payload);
+
+      const existing = state.versions[pageId] ?? [];
+      const last = existing[0];
+      if (last) {
+        const lastJson = JSON.stringify({
+          title: last.title,
+          icon: last.icon,
+          iconImage: last.iconImage,
+          cover: last.cover,
+          tags: last.tags,
+          blockOrder: last.blockOrder,
+          blocks: last.blocks,
+        });
+        if (lastJson === payloadJson) return;
+      }
+
+      const version: PageVersion = { id: uid(), at: Date.now(), ...payload };
+      set((s) => {
+        s.versions[pageId] = [version, ...(s.versions[pageId] ?? [])].slice(0, 20);
+      });
+    },
+
+    restoreVersion: (pageId, versionId) => {
+      const state = get();
+      const page = state.pages[pageId];
+      const version = (state.versions[pageId] ?? []).find((v) => v.id === versionId);
+      if (!page || !version) return;
+      pushHistory(state, 'structural');
+      set((s) => {
+        const p = s.pages[pageId];
+        if (!p) return;
+        const removeTree = (bid: string) => {
+          const b = s.blocks[bid];
+          if (!b) return;
+          b.children.forEach(removeTree);
+          delete s.blocks[bid];
+        };
+        p.blockOrder.forEach(removeTree);
+        p.title = version.title;
+        p.icon = version.icon;
+        p.iconImage = version.iconImage;
+        p.cover = version.cover;
+        p.tags = [...version.tags];
+        p.blockOrder = [...version.blockOrder];
+        p.updatedAt = Date.now();
+        for (const [bid, b] of Object.entries(version.blocks)) {
+          s.blocks[bid] = JSON.parse(JSON.stringify(b)) as Block;
+        }
+      });
     },
 
     createBlock: (pageId, parentBlockId, index, type, content) => {

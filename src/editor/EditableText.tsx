@@ -46,6 +46,7 @@ interface EditableTextProps {
   onInput: (value: RichText, caret: Caret) => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLDivElement>, caret: Caret | null) => void;
   onPasteMultiline?: (text: string) => void;
+  onPasteFiles?: (files: File[]) => void;
   onLinkClick?: (url: string, x: number, y: number) => void;
   onLinkShortcut?: () => void;
   onFocusChanged?: (focused: boolean) => void;
@@ -64,6 +65,7 @@ export const EditableText = forwardRef<EditableApi, EditableTextProps>(function 
     onInput,
     onKeyDown,
     onPasteMultiline,
+    onPasteFiles,
     onLinkClick,
     onLinkShortcut,
     onFocusChanged,
@@ -81,6 +83,7 @@ export const EditableText = forwardRef<EditableApi, EditableTextProps>(function 
   const onInputRef = useRef(onInput);
   const onKeyDownRef = useRef(onKeyDown);
   const onPasteMultilineRef = useRef(onPasteMultiline);
+  const onPasteFilesRef = useRef(onPasteFiles);
   const onLinkClickRef = useRef(onLinkClick);
   const onLinkShortcutRef = useRef(onLinkShortcut);
   const onFocusChangedRef = useRef(onFocusChanged);
@@ -88,6 +91,7 @@ export const EditableText = forwardRef<EditableApi, EditableTextProps>(function 
   onInputRef.current = onInput;
   onKeyDownRef.current = onKeyDown;
   onPasteMultilineRef.current = onPasteMultiline;
+  onPasteFilesRef.current = onPasteFiles;
   onLinkClickRef.current = onLinkClick;
   onLinkShortcutRef.current = onLinkShortcut;
   onFocusChangedRef.current = onFocusChanged;
@@ -267,6 +271,12 @@ export const EditableText = forwardRef<EditableApi, EditableTextProps>(function 
   };
 
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const files = Array.from(e.clipboardData.files ?? []);
+    if (files.length > 0 && onPasteFilesRef.current) {
+      e.preventDefault();
+      onPasteFilesRef.current(files);
+      return;
+    }
     e.preventDefault();
     const text = e.clipboardData.getData('text/plain');
     if (!text) return;

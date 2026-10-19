@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, ChevronRight, GripVertical, Plus } from 'lucide-react';
+import { Check, ChevronRight, GripVertical, ImagePlus, Plus } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import {
   absoluteToCaret,
@@ -17,19 +17,34 @@ import {
   type Caret,
 } from '@/lib/richText';
 import { detectMarkdown, stripPrefix } from '@/lib/blocks';
-import { BLOCK_LABELS, type Block, type BlockType } from '@/types';
+import { uid } from '@/lib/id';
+import { isImageFile, readFileAsDataURL } from '@/lib/files';
+import {
+  BLOCK_LABELS,
+  isHeadingType,
+  isToggleHeading,
+  type Block,
+  type BlockType,
+} from '@/types';
 import type { FlatEntry } from '@/lib/flatten';
 import { useEditorCtx } from './context';
 import { EditableText, type EditableApi } from './EditableText';
 import { SlashMenu } from './SlashMenu';
 import { filterSlash, type SlashCommand } from './slashCommands';
-import { Menu } from '@/components/Menu';
+import { Menu, type MenuItemSpec } from '@/components/Menu';
+import { EmojiPicker } from '@/components/EmojiPicker';
+import { TableBlock, tableOps } from './TableBlock';
+import { ColumnsBlock } from './ColumnsBlock';
+import { ImageBlock } from './ImageBlock';
 
 const PLACEHOLDERS: Record<BlockType, string> = {
   paragraph: "Digite '/' para comandos…",
   heading_1: 'Título 1',
   heading_2: 'Título 2',
   heading_3: 'Título 3',
+  toggle_heading_1: 'Título recolhível 1',
+  toggle_heading_2: 'Título recolhível 2',
+  toggle_heading_3: 'Título recolhível 3',
   bulleted_list: 'Item da lista',
   numbered_list: 'Item da lista',
   to_do: 'Tarefa',
@@ -38,6 +53,9 @@ const PLACEHOLDERS: Record<BlockType, string> = {
   code: '',
   divider: '',
   callout: 'Digite algo…',
+  image: '',
+  table: '',
+  columns: '',
 };
 
 const CODE_LANGUAGES = [
@@ -61,6 +79,38 @@ interface SlashState {
   active: number;
 }
 
+interface TableCellPos {
+  r: number;
+  c: number;
+}
+
+/** Patch para converter um bloco em outro tipo, criando dados padrão quando preciso. */
+function patchForType(type: BlockType, block: Block): Partial<Block> {
+  const patch: Partial<Block> = { type };
+  if (type === 'table' && !block.table) {
+    patch.table = {
+      cells: [
+        ['', '', ''],
+        ['', '', ''],
+        ['', '', ''],
+      ],
+    };
+  }
+  if (type === 'columns' && !block.columns) {
+    patch.columns = [
+      { id: uid(), text: emptyText() },
+      { id: uid(), text: emptyText() },
+    ];
+  }
+  if (type === 'image' && !block.image) {
+    patch.image = { src: '', caption: '' };
+  }
+  if (type === 'callout' && !block.calloutIcon) {
+    patch.calloutIcon = '💡';
+  }
+  return patch;
+}
+
 export const BlockItem = memo(function BlockItem({
   entry,
   block,
@@ -72,12 +122,15 @@ export const BlockItem = memo(function BlockItem({
   const edRef = useRef<EditableApi | null>(null);
   const rowRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const imageFileRef = useRef<HTMLInputElement>(null);
   const lastCaretRef = useRef<Caret>({ idx: 0, offset: 0 });
   const [slash, setSlash] = useState<SlashState | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [selected, setSelected] = useState(false);
   const [focusCode, setFocusCode] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [tableCell, setTableCell] = useState<TableCellPos | null>(null);
+  const [calloutOpen, setCalloutOpen] = useState(false);
 
   const pageId = ctx.pageId;
 
@@ -163,6 +216,18 @@ export const BlockItem = memo(function BlockItem({
     return () => document.removeEventListener('mousedown', onDown);
   }, [selected]);
 
+  // Fecha o seletor de emoji do callout ao clicar fora.
+  useEffect(() => {
+    if (!calloutOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (rowRef.current && !rowRef.current.querySelector('.callout-picker-wrap')?.contains(e.target as Node)) {
+        setCalloutOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [calloutOpen]);
+
   // -------------------------------------------------------------------------
   // Edição de conteúdo
   // -------------------------------------------------------------------------
@@ -212,6 +277,24 @@ export const BlockItem = memo(function BlockItem({
   );
 
   // -------------------------------------------------------------------------
+  // Colagem de imagens
+  // -------------------------------------------------------------------------
+  const handlePasteFiles = useCallback(
+    async (files: File[]) => {
+      const images = files.filter(isImageFile);
+      if (images.length === 0) return;
+      let index = entry.indexInParent + 1;
+      for (const file of images) {
+        const url = await readFileAsDataURL(file);
+        const newId = useAppStore.getState().createBlock(pageId, entry.parentId, index, 'image');
+        useAppStore.getState().updateBlock(newId, { image: { src: url, caption: '' } });
+        index += 1;
+      }
+    },
+    [pageId, entry.parentId, entry.indexInParent]
+  );
+
+  // -------------------------------------------------------------------------
   // Comandos "/"
   // -------------------------------------------------------------------------
   const executeSlash = useCallback(
@@ -240,8 +323,15 @@ export const BlockItem = memo(function BlockItem({
         setFocusCode(true);
         return;
       }
-      useAppStore.getState().updateBlock(block.id, { type: cmd.type }, 'structural');
-      edRef.current?.setPendingCaret({ idx: 0, offset: 0 });
+      if (cmd.type === 'image') {
+        useAppStore.getState().updateBlock(block.id, patchForType('image', cur), 'structural');
+        requestAnimationFrame(() => imageFileRef.current?.click());
+        return;
+      }
+      useAppStore.getState().updateBlock(block.id, patchForType(cmd.type, cur), 'structural');
+      if (isHeadingType(cmd.type)) {
+        edRef.current?.setPendingCaret({ idx: 0, offset: 0 });
+      }
     },
     [block.id, entry.parentId, entry.indexInParent, pageId, ctx]
   );
@@ -276,8 +366,8 @@ export const BlockItem = memo(function BlockItem({
 
       const { left, right } = splitContent(content, caret);
       const emptyLeft = isEmptyContent(left);
-      const isHeading =
-        cur.type === 'heading_1' || cur.type === 'heading_2' || cur.type === 'heading_3';
+      const headingLike = isHeadingType(cur.type);
+      const toggleHeading = isToggleHeading(cur.type);
 
       if (
         emptyLeft &&
@@ -286,6 +376,7 @@ export const BlockItem = memo(function BlockItem({
           cur.type === 'to_do' ||
           cur.type === 'quote' ||
           cur.type === 'toggle' ||
+          toggleHeading ||
           cur.type === 'callout')
       ) {
         useAppStore.getState().setBlockContent(block.id, emptyText());
@@ -293,7 +384,7 @@ export const BlockItem = memo(function BlockItem({
         return;
       }
 
-      if (isHeading && caret.idx === 0 && caret.offset === 0 && !emptyLeft) {
+      if (headingLike && caret.idx === 0 && caret.offset === 0 && !emptyLeft) {
         const newId = useAppStore
           .getState()
           .createBlock(pageId, entry.parentId, entry.indexInParent, 'paragraph');
@@ -301,7 +392,7 @@ export const BlockItem = memo(function BlockItem({
         return;
       }
 
-      if (cur.type === 'toggle') {
+      if (cur.type === 'toggle' || toggleHeading) {
         if (cur.collapsed) {
           const newId = useAppStore
             .getState()
@@ -317,7 +408,7 @@ export const BlockItem = memo(function BlockItem({
       }
 
       const newType: BlockType =
-        isHeading || cur.type === 'callout' ? 'paragraph' : cur.type;
+        headingLike || cur.type === 'callout' ? 'paragraph' : cur.type;
       const newId = useAppStore
         .getState()
         .createBlock(pageId, entry.parentId, entry.indexInParent + 1, newType, right);
@@ -531,13 +622,13 @@ export const BlockItem = memo(function BlockItem({
       ctx.focusBlock(newId, 'start');
       return;
     }
-    useAppStore.getState().updateBlock(block.id, { type }, 'structural');
+    useAppStore.getState().updateBlock(block.id, patchForType(type, live()), 'structural');
     if (type === 'code') setFocusCode(true);
-    else edRef.current?.setPendingCaret({ idx: 0, offset: 0 });
+    else if (isHeadingType(type)) edRef.current?.setPendingCaret({ idx: 0, offset: 0 });
   };
 
-  const menuItems = useMemo(
-    () => [
+  const menuItems = useMemo<MenuItemSpec[]>(() => {
+    const items: MenuItemSpec[] = [
       {
         label: 'Duplicar',
         icon: <CopyIcon />,
@@ -551,16 +642,87 @@ export const BlockItem = memo(function BlockItem({
           onClick: () => transformTo(t),
         })),
       },
-      {
-        label: 'Excluir',
-        icon: <TrashIcon />,
-        danger: true,
-        onClick: deleteBlock,
-      },
-    ],
+    ];
+
+    if (block.type === 'table' && tableCell) {
+      const ops = tableOps(live());
+      items.push(
+        {
+          label: 'Inserir linha abaixo',
+          icon: <RowIcon />,
+          onClick: () => {
+            useAppStore
+              .getState()
+              .updateBlock(block.id, { table: { cells: ops.addRowAt(tableCell.r) } }, 'structural');
+            setMenu(null);
+          },
+        },
+        {
+          label: 'Inserir coluna à direita',
+          icon: <ColIcon />,
+          onClick: () => {
+            useAppStore
+              .getState()
+              .updateBlock(block.id, { table: { cells: ops.addColAt(tableCell.c) } }, 'structural');
+            setMenu(null);
+          },
+        },
+        {
+          label: 'Excluir linha',
+          icon: <TrashIcon />,
+          danger: true,
+          disabled: ops.rows <= 1,
+          onClick: () => {
+            useAppStore
+              .getState()
+              .updateBlock(block.id, { table: { cells: ops.removeRowAt(tableCell.r) } }, 'structural');
+            setMenu(null);
+          },
+        },
+        {
+          label: 'Excluir coluna',
+          icon: <TrashIcon />,
+          danger: true,
+          disabled: ops.cols <= 1,
+          onClick: () => {
+            useAppStore
+              .getState()
+              .updateBlock(block.id, { table: { cells: ops.removeColAt(tableCell.c) } }, 'structural');
+            setMenu(null);
+          },
+        }
+      );
+    }
+
+    if (block.type === 'columns' && (live().columns?.length ?? 0) < 4) {
+      items.push({
+        label: 'Adicionar coluna',
+        icon: <ColIcon />,
+        onClick: () => {
+          const cur = live();
+          const cols = cur.columns ?? [];
+          useAppStore
+            .getState()
+            .updateBlock(
+              block.id,
+              { columns: [...cols, { id: uid(), text: emptyText() }] },
+              'structural'
+            );
+          setMenu(null);
+        },
+      });
+    }
+
+    items.push({
+      label: 'Excluir',
+      icon: <TrashIcon />,
+      danger: true,
+      onClick: deleteBlock,
+    });
+
+    return items;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [block.id, entry]
-  );
+  }, [block.id, block.type, tableCell, entry]);
 
   // -------------------------------------------------------------------------
   // Bloco de código
@@ -621,7 +783,19 @@ export const BlockItem = memo(function BlockItem({
 
   const isChecked = block.type === 'to_do' && block.checked;
   const isCode = block.type === 'code';
+  const isImage = block.type === 'image';
+  const isTable = block.type === 'table';
+  const isColumns = block.type === 'columns';
+  const isTextual = !isCode && !isImage && !isTable && !isColumns;
+  const isToggle = block.type === 'toggle' || isToggleHeading(block.type);
   const isEmpty = isEmptyContent(block.content);
+  const headingLevel = block.type === 'heading_1' || block.type === 'toggle_heading_1'
+    ? 'h1'
+    : block.type === 'heading_2' || block.type === 'toggle_heading_2'
+      ? 'h2'
+      : block.type === 'heading_3' || block.type === 'toggle_heading_3'
+        ? 'h3'
+        : '';
   const rowClass = [
     'block-row',
     `block-${block.type.replace(/_/g, '-')}`,
@@ -641,7 +815,7 @@ export const BlockItem = memo(function BlockItem({
       style={{ marginLeft: entry.depth * 24 }}
       onDragOver={(e) => ctx.onDragOverRow(e, entry)}
       onClick={(e) => {
-        if (e.target === rowRef.current && !isCode) edRef.current?.focusEnd();
+        if (e.target === rowRef.current && isTextual) edRef.current?.focusEnd();
       }}
     >
       <div className="block-controls">
@@ -675,9 +849,9 @@ export const BlockItem = memo(function BlockItem({
             {isChecked && <Check size={12} strokeWidth={3} />}
           </button>
         )}
-        {block.type === 'toggle' && (
+        {isToggle && (
           <button
-            className={`toggle-tri${block.collapsed ? '' : ' is-open'}`}
+            className={`toggle-tri${block.collapsed ? '' : ' is-open'}${headingLevel ? ' is-heading' : ''}`}
             aria-label="Expandir/recolher"
             onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => {
@@ -690,7 +864,36 @@ export const BlockItem = memo(function BlockItem({
         )}
         {block.type === 'bulleted_list' && <span className="glyph-bullet">•</span>}
         {block.type === 'numbered_list' && <span className="glyph-number">{entry.number}.</span>}
-        {block.type === 'callout' && <span className="callout-icon">💡</span>}
+        {block.type === 'callout' && (
+          <div className="callout-picker-wrap">
+            <button
+              className="callout-icon-btn"
+              title="Alterar ícone da chamada"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.stopPropagation();
+                setCalloutOpen((v) => !v);
+              }}
+            >
+              {block.calloutIcon ?? '💡'}
+            </button>
+            {calloutOpen && (
+              <EmojiPicker
+                onSelect={(emoji) => {
+                  useAppStore.getState().updateBlock(block.id, { calloutIcon: emoji }, 'structural');
+                  setCalloutOpen(false);
+                }}
+                onRandom={() => {
+                  const pool = ['💡', '🔥', '⭐', '📌', '⚠️', '✅', '🎯', '🚀', '🧠', '❤️'];
+                  useAppStore
+                    .getState()
+                    .updateBlock(block.id, { calloutIcon: pool[Math.floor(Math.random() * pool.length)] }, 'structural');
+                  setCalloutOpen(false);
+                }}
+              />
+            )}
+          </div>
+        )}
 
         {isCode ? (
           <div className="code-wrap">
@@ -756,6 +959,12 @@ export const BlockItem = memo(function BlockItem({
               onFocus={() => ctx.setFocusedBlock(block.id)}
             />
           </div>
+        ) : isImage ? (
+          <ImageBlock block={block} />
+        ) : isTable ? (
+          <TableBlock block={block} onCellFocus={setTableCell} />
+        ) : isColumns ? (
+          <ColumnsBlock block={block} />
         ) : (
           <EditableText
             ref={edCallback}
@@ -764,9 +973,7 @@ export const BlockItem = memo(function BlockItem({
             className={[
               'block-editable',
               isEmpty ? 'is-empty' : '',
-              block.type === 'heading_1' ? 'h1' : '',
-              block.type === 'heading_2' ? 'h2' : '',
-              block.type === 'heading_3' ? 'h3' : '',
+              headingLevel,
             ]
               .filter(Boolean)
               .join(' ')}
@@ -774,6 +981,7 @@ export const BlockItem = memo(function BlockItem({
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onPasteMultiline={handlePasteMultiline}
+            onPasteFiles={handlePasteFiles}
             onLinkClick={(url, x, y) => ctx.openLinkPopover(block.id, x, y, url)}
             onLinkShortcut={() => {
               const rect = edRef.current?.getCaretRect();
@@ -798,6 +1006,25 @@ export const BlockItem = memo(function BlockItem({
           onSelect={executeSlash}
           onClose={() => setSlash(null)}
         />
+      )}
+      <input
+        ref={imageFileRef}
+        type="file"
+        accept="image/*"
+        className="hidden-file"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            const url = await readFileAsDataURL(file);
+            useAppStore.getState().updateBlock(block.id, { image: { src: url, caption: '' } });
+          }
+          e.target.value = '';
+        }}
+      />
+      {block.type === 'image' && !block.image?.src && (
+        <span className="image-hint">
+          <ImagePlus size={12} /> Dica: também é possível colar imagens com Ctrl+V
+        </span>
       )}
     </div>
   );
@@ -828,6 +1055,22 @@ function TrashIcon() {
       <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
       <line x1="10" x2="10" y1="11" y2="17" />
       <line x1="14" x2="14" y1="11" y2="17" />
+    </svg>
+  );
+}
+function RowIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M3 12h18" />
+    </svg>
+  );
+}
+function ColIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="18" height="18" x="3" y="3" rx="2" />
+      <path d="M12 3v18" />
     </svg>
   );
 }

@@ -3,9 +3,18 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useRef, useState } from 'react';
-import { Bold, Code2, Eraser, Italic, Link2, Strikethrough, Underline } from 'lucide-react';
+import {
+  Bold,
+  Code2,
+  Eraser,
+  Italic,
+  Link2,
+  Palette,
+  Strikethrough,
+  Underline,
+} from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
-import type { RichSegment } from '@/types';
+import { TEXT_COLORS, type RichSegment } from '@/types';
 import type { EditableApi } from './EditableText';
 
 interface FormatToolbarProps {
@@ -29,6 +38,7 @@ export function FormatToolbar({ blockId, x, y, api, onClose, onOpenLink }: Forma
   const content = useAppStore((s) => s.blocks[blockId]?.content);
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ x, y });
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   useEffect(() => {
     const el = ref.current;
@@ -48,6 +58,16 @@ export function FormatToolbar({ blockId, x, y, api, onClose, onOpenLink }: Forma
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // Fecha a paleta ao clicar fora da barra.
+  useEffect(() => {
+    if (!paletteOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setPaletteOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [paletteOpen]);
 
   if (!api) return null;
 
@@ -86,6 +106,16 @@ export function FormatToolbar({ blockId, x, y, api, onClose, onOpenLink }: Forma
       >
         <Link2 size={15} />
       </button>
+      <button
+        className={`tb-btn${paletteOpen ? ' is-active' : ''}${seg?.color || seg?.bg ? ' has-color' : ''}`}
+        title="Cor do texto e destaque"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          setPaletteOpen((v) => !v);
+        }}
+      >
+        <Palette size={15} />
+      </button>
       <span className="tb-sep" />
       <button
         className="tb-btn"
@@ -97,6 +127,63 @@ export function FormatToolbar({ blockId, x, y, api, onClose, onOpenLink }: Forma
       >
         <Eraser size={15} />
       </button>
+
+      {paletteOpen && (
+        <div className="color-palette">
+          <div className="palette-section">Cor do texto</div>
+          <div className="palette-row">
+            <button
+              className={`palette-swatch is-default${!seg?.color ? ' is-selected' : ''}`}
+              title="Padrão"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                api.applyFormat({ color: undefined });
+              }}
+            >
+              A
+            </button>
+            {TEXT_COLORS.map((c) => (
+              <button
+                key={c}
+                className={`palette-swatch palette-text-${c}${seg?.color === c ? ' is-selected' : ''}`}
+                title={c}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  api.applyFormat({ color: c });
+                }}
+              >
+                A
+              </button>
+            ))}
+          </div>
+          <div className="palette-section">Destaque</div>
+          <div className="palette-row">
+            <button
+              className={`palette-swatch is-default${!seg?.bg ? ' is-selected' : ''}`}
+              title="Sem destaque"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                api.applyFormat({ bg: undefined });
+              }}
+            >
+              A
+            </button>
+            {TEXT_COLORS.map((c) => (
+              <button
+                key={c}
+                className={`palette-swatch palette-bg-${c}${seg?.bg === c ? ' is-selected' : ''}`}
+                title={c}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  api.applyFormat({ bg: c });
+                }}
+              >
+                A
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
