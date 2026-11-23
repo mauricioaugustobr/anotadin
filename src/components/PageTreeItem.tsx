@@ -3,13 +3,14 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronRight, FilePlus2, MoreHorizontal, Plus, Star } from 'lucide-react';
+import { ChevronRight, Download, FilePlus2, MoreHorizontal, Plus, Star } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { useUiStore } from '@/store/uiStore';
 import { sortPageIds } from '@/lib/tags';
 import type { Page } from '@/types';
 import { Menu } from './Menu';
 import type { MenuItemSpec } from './Menu';
+import { exportPageToFile } from '@/lib/transfer';
 
 const PAGE_MIME = 'text/x-anotadin-page';
 
@@ -89,6 +90,7 @@ export function PageTreeItem({ pageId, depth, visibleIds }: PageTreeItemProps) {
       onClick: () => updatePage(pageId, { favorite: !page.favorite }, 'structural'),
     },
     { label: 'Duplicar', icon: <CopyIcon />, onClick: () => duplicatePage(pageId) },
+    { label: 'Exportar página', icon: <Download size={14} />, onClick: () => exportPageToFile(pageId) },
     { label: 'Excluir', icon: <TrashIcon />, danger: true, onClick: () => deletePage(pageId) },
   ];
 

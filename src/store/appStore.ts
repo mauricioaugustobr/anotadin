@@ -7,6 +7,7 @@ import { immer } from 'zustand/middleware/immer';
 import { uid } from '@/lib/id';
 import { fromPlainText, normalize, textOf } from '@/lib/richText';
 import { blockSubtree, cloneBlockTree, deleteBlockTree, findBlockParent, makeBlock, removeBlockFromParent } from '@/lib/blocks';
+import type { ImportedPages } from '@/lib/transfer';
 import type { Block, BlockType, Page, PageVersion, PersistedData, RichText } from '@/types';
 import { useUiStore } from './uiStore';
 
@@ -34,6 +35,8 @@ interface AppState {
   updatePage: (id: string, patch: Partial<Page>, kind?: 'content' | 'structural') => void;
   movePage: (id: string, parentId: string | null, index: number) => void;
   duplicatePage: (id: string) => string | null;
+  /** Adiciona na raiz páginas vindas de um arquivo exportado e abre a principal. */
+  importPages: (data: ImportedPages) => string;
 
   // Histórico de versões
   snapshotPage: (pageId: string) => void;
@@ -317,6 +320,26 @@ export const useAppStore = create<AppState>()(
       });
       useUiStore.setState({ showToday: false });
       return newId;
+    },
+
+    importPages: (data) => {
+      pushHistory(get(), 'structural');
+      set((s) => {
+        Object.assign(s.blocks, data.blocks);
+        for (const page of Object.values(data.pages)) {
+          // Toda página precisa de ao menos um bloco para ser editável.
+          if (page.blockOrder.length === 0) {
+            const fresh = makeBlock('paragraph', page.id);
+            s.blocks[fresh.id] = fresh;
+            page.blockOrder = [fresh.id];
+          }
+          s.pages[page.id] = page;
+        }
+        s.rootPageIds.push(data.rootPageId);
+        s.currentPageId = data.rootPageId;
+      });
+      useUiStore.setState({ showToday: false });
+      return data.rootPageId;
     },
 
     snapshotPage: (pageId) => {

@@ -2,13 +2,14 @@
 // Barra lateral: logo, nova página, Hoje, favoritos, filtros e árvore
 // ---------------------------------------------------------------------------
 
-import { useCallback, useMemo, useState } from 'react';
-import { ArrowUpDown, ChevronDown, Filter, Plus, Star, Sun, X } from 'lucide-react';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { ArrowUpDown, ChevronDown, Filter, Plus, Star, Sun, Upload, X } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { useUiStore } from '@/store/uiStore';
 import { collectTags, pagesMatchingTag, sortPageIds, tagColor } from '@/lib/tags';
 import { countAllWords } from '@/lib/words';
 import { PAGE_TEMPLATES, type PageTemplate } from '@/lib/templates';
+import { importPageFromFile } from '@/lib/transfer';
 import { PageTreeItem } from './PageTreeItem';
 import { Menu, type MenuItemSpec } from './Menu';
 
@@ -35,6 +36,13 @@ export function Sidebar() {
   const [filterMenu, setFilterMenu] = useState<{ x: number; y: number } | null>(null);
 
   const moveToRoot = useAppStore((s) => s.movePage);
+  const importRef = useRef<HTMLInputElement>(null);
+
+  const handleImport = async (file: File | undefined) => {
+    if (!file) return;
+    const error = await importPageFromFile(file);
+    if (error) window.alert(error);
+  };
 
   const tags = useMemo(() => collectTags(pages), [pages]);
   const visibleIds = useMemo(() => pagesMatchingTag(pages, tagFilter), [pages, tagFilter]);
@@ -175,6 +183,23 @@ export function Sidebar() {
           <button className="tree-ctrl" title="Ordenar páginas" onClick={openSort}>
             <ArrowUpDown size={13} />
           </button>
+          <button
+            className="tree-ctrl"
+            title="Importar página (.anotadin.json)"
+            onClick={() => importRef.current?.click()}
+          >
+            <Upload size={13} />
+          </button>
+          <input
+            ref={importRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden-file"
+            onChange={async (e) => {
+              await handleImport(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
         </span>
       </div>
 
