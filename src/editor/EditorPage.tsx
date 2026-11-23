@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { History, ImagePlus, MoreHorizontal, Star } from 'lucide-react';
+import { Download, History, ImagePlus, MoreHorizontal, Star } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { formatDate } from '@/lib/utils';
 import { textOf } from '@/lib/richText';
@@ -16,6 +16,7 @@ import { CoverPicker, coverStyle } from '@/components/CoverPicker';
 import { TagEditor } from '@/components/TagEditor';
 import { VersionHistoryModal } from '@/components/VersionHistoryModal';
 import { Menu } from '@/components/Menu';
+import { exportPageToFile } from '@/lib/transfer';
 
 // Intervalos para o histórico automático de versões.
 const lastSnapshotTimes: Record<string, number> = {};
@@ -155,6 +156,11 @@ const PageHeader = memo(function PageHeader({ page }: { page: Page }) {
       label: page.favorite ? 'Remover dos favoritos' : 'Adicionar aos favoritos',
       icon: <Star size={14} />,
       onClick: toggleFavorite,
+    },
+    {
+      label: 'Exportar página',
+      icon: <Download size={14} />,
+      onClick: () => exportPageToFile(page.id),
     },
   ];
 

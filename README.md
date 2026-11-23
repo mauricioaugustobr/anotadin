@@ -22,6 +22,7 @@
 - **Desfazer/refazer** — `Ctrl+Z` / `Ctrl+Shift+Z`
 - **Tema claro/escuro** — `Ctrl+Shift+L`
 - **Persistência local** — salvo automaticamente no IndexedDB do navegador (funciona offline)
+- **Exportar/importar página** — no menu `···` da página (ou clique direito na lateral), **Exportar página** baixa um arquivo `.anotadin.json` com a página, as subpáginas, as imagens, a capa e a ordem exata dos blocos. Para restaurar em outro perfil do Chrome, outro navegador ou outro computador, use o botão **Importar página** (ícone ⇪ ao lado de “Páginas”). A cópia importada ganha IDs novos, então nada do que já existe é sobrescrito
 - **PWA instalável** — adicione o ANOTADIN à tela inicial (celular ou desktop) e use como app, mesmo sem internet
 - **URL por página** — cada página tem link próprio (`#/page/…`), com suporte ao botão voltar do navegador
 - **Contagem de palavras** — por página e total no rodapé da lateral
@@ -73,8 +74,6 @@ src/
 
 ## 🗺️ Roadmap
 
-- Imagens e uploads
-- Cores de texto e fundo
 - Exportar/importar Markdown
 - Sincronização entre dispositivos (backend)
 - Colaboração em tempo real
